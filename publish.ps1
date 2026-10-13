@@ -35,7 +35,17 @@ if (-not $Message) {
 git commit -m $Message
 if ($LASTEXITCODE -ne 0) { throw 'Git 提交失败，已停止发布。' }
 
-git push
-if ($LASTEXITCODE -ne 0) { throw 'Git 推送失败，请检查网络后重试。' }
+$pushed = $false
+for ($attempt = 1; $attempt -le 3; $attempt++) {
+    git push
+    if ($LASTEXITCODE -eq 0) { $pushed = $true; break }
+    if ($attempt -lt 3) {
+        Write-Host "推送失败，正在重试（$attempt/3）…" -ForegroundColor Yellow
+        Start-Sleep -Seconds (2 * $attempt)
+    }
+}
+if (-not $pushed) {
+    throw 'Git 推送失败。提交已保存在本地，网络恢复后运行 git push 即可。'
+}
 
 Write-Host '发布完成：https://16369.github.io/' -ForegroundColor Green
