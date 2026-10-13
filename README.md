@@ -134,6 +134,8 @@ draft: false                 # true = 草稿，默认构建时跳过
 
 `publish.ps1` 会自动执行构建、链接自检、Git 提交和推送。推送成功后，GitHub Actions 会自动重新部署，通常一两分钟后就能在正式网站看到新文章。
 
+如果 `git push` 因网络问题失败，`publish.ps1` 会自动改用 GitHub API 通道完成发布。
+
 也可以手动发布：
 
 ```powershell
