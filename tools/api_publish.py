@@ -32,6 +32,17 @@ def find_gh() -> str:
 GH = find_gh()
 
 
+def _force_utf8_stdout() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
+_force_utf8_stdout()
+
+
 def git(args: list[str]) -> bytes:
     proc = subprocess.run(
         ["git", "-c", "core.quotepath=false", *args],
