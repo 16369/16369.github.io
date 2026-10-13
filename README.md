@@ -112,3 +112,34 @@ draft: false                 # true = 草稿，默认构建时跳过
 - 依赖只有四个：`markdown`、`jinja2`、`pygments`、`pyyaml`，装在项目内的 `.venv` 里
 - 重装依赖：`.\.venv\Scripts\python.exe -m pip install -r requirements.txt`
 - `public/` 是构建产物，已加入 `.gitignore`，不用提交
+## 八、发布新文章
+
+正式网站：<https://16369.github.io/>
+
+最省事的一套流程：
+
+```powershell
+# 1. 新建文章
+.\new-post.ps1 "文章标题" -Tags 技术,随笔 -Category 笔记
+
+# 2. 编辑正文
+#    文件在 content/posts/ 目录下，用任意文本编辑器打开即可
+
+# 3. 本地预览
+.\serve.ps1
+
+# 4. 一键构建、自检、提交并发布
+.\publish.ps1
+```
+
+`publish.ps1` 会自动执行构建、链接自检、Git 提交和推送。推送成功后，GitHub Actions 会自动重新部署，通常一两分钟后就能在正式网站看到新文章。
+
+也可以手动发布：
+
+```powershell
+.\build.ps1
+.\check.ps1
+git add .
+git commit -m "发布新文章"
+git push
+```
