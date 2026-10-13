@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     构建、自检、提交并发布博客到 GitHub Pages。
 .EXAMPLE

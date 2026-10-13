@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     把 content/ 里的 Markdown 生成到 public/。
 .EXAMPLE

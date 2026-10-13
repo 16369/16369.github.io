@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     新建一篇文章，自动填好日期、标签和 front matter。
 .EXAMPLE

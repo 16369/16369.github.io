@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     整理 content/posts/ 里的文章文件名（统一成 日期-标题.md），并检查缺失的元信息。
 .EXAMPLE
