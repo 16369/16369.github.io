@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Publish the current local Git commit through the GitHub API.
+"""Publish local Git commits through the GitHub API.
 
 This is a fallback for networks where `git push` cannot connect to
 github.com, while api.github.com remains reachable.
+
+Commits from the remote branch tip to HEAD are replayed one by one through
+the Git Data API. Commit messages and author/committer metadata are preserved,
+so linear local history normally produces the same commit SHAs remotely.
 """
 from __future__ import annotations
 
@@ -43,9 +47,13 @@ def _force_utf8_stdout() -> None:
 _force_utf8_stdout()
 
 
+def _git_command(args: list[str]) -> list[str]:
+    return ["git", "-c", "core.quotepath=false", *args]
+
+
 def git(args: list[str]) -> bytes:
     proc = subprocess.run(
-        ["git", "-c", "core.quotepath=false", *args],
+        _git_command(args),
         cwd=ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -56,6 +64,16 @@ def git(args: list[str]) -> bytes:
     return proc.stdout
 
 
+def git_ok(args: list[str]) -> bool:
+    proc = subprocess.run(
+        _git_command(args),
+        cwd=ROOT,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return proc.returncode == 0
+
+
 def api(path: str, payload: dict | None = None, method: str = "GET") -> dict:
     command = [GH, "api"]
     if payload is not None:
@@ -64,104 +82,188 @@ def api(path: str, payload: dict | None = None, method: str = "GET") -> dict:
     data = None
     if payload is not None:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    proc = subprocess.run(command, input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        command,
+        input=data,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     if proc.returncode != 0:
         message = proc.stderr.decode("utf-8", "replace").strip()
         raise SystemExit(message or f"gh api {path} 失败")
     return json.loads(proc.stdout.decode("utf-8"))
 
 
-def main() -> int:
-    local_head = git(["rev-parse", "HEAD"]).decode("ascii").strip()
-    remote_ref = api(f"/git/ref/heads/{BRANCH}")
-    remote_head = remote_ref["object"]["sha"]
-    if local_head == remote_head:
-        print("GitHub 已经是最新版本，无需发布。")
-        return 0
+def commit_message(commit_sha: str) -> str:
+    raw = git(["cat-file", "commit", commit_sha])
+    parts = raw.split(b"\n\n", 1)
+    if len(parts) != 2:
+        raise SystemExit(f"无法读取提交说明：{commit_sha}")
+    return parts[1].decode("utf-8", "replace")
 
-    compare = api(f"/compare/{remote_head}...{local_head}")
-    if compare.get("status") != "ahead":
-        print("\u8fdc\u7a0b main \u4e0e\u672c\u5730\u5206\u652f\u4e0d\u4e00\u81f4\uff0c\u5df2\u505c\u6b62\u53d1\u5e03\u3002")
-        print("\u8bf7\u5148\u8fd0\u884c git fetch origin \u5e76\u68c0\u67e5 git log\u3002")
-        return 1
 
-    remote_commit = api(f"/git/commits/{remote_head}")
-    base_tree = remote_commit["tree"]["sha"]
-    message = git(["log", "-1", "--pretty=%B"]).decode("utf-8").strip()
-    identity = git([
-        "log", "-1", "--pretty=%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI"
-    ]).decode("utf-8", "replace").strip().split("\x00")
+def commit_identity(commit_sha: str) -> tuple[str, str, str, str, str, str]:
+    output = git([
+        "show",
+        "-s",
+        "--format=%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI",
+        commit_sha,
+    ]).decode("utf-8", "replace").strip()
+    identity = output.split("\x00")
     if len(identity) != 6:
-        raise SystemExit("\u65e0\u6cd5\u8bfb\u53d6\u63d0\u4ea4\u4f5c\u8005\u4fe1\u606f\u3002")
-    author_name, author_email, author_date, committer_name, committer_email, committer_date = identity
-    diff_text = git([
-        "diff", "--name-status", "--no-renames", remote_head, local_head
-    ]).decode("utf-8", "replace")
+        raise SystemExit(f"无法读取提交作者信息：{commit_sha}")
+    return tuple(identity)  # type: ignore[return-value]
 
+
+def commit_parents(commit_sha: str) -> list[str]:
+    output = git(["show", "-s", "--format=%P", commit_sha]).decode("ascii").strip()
+    return output.split() if output else []
+
+
+def changed_entries(parent_sha: str, commit_sha: str) -> list[dict]:
+    diff_text = git([
+        "diff",
+        "--name-status",
+        "--no-renames",
+        parent_sha,
+        commit_sha,
+    ]).decode("utf-8", "replace")
     entries: list[dict] = []
+
     for line in diff_text.splitlines():
         if not line.strip():
             continue
         status, path = line.split("\t", 1)
         path = path.strip()
         if status.startswith("D"):
-            entries.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
+            entries.append({
+                "path": path,
+                "mode": "100644",
+                "type": "blob",
+                "sha": None,
+            })
             print(f"删除 {path}")
             continue
 
-        file_path = ROOT / path
-        if not file_path.is_file():
-            print(f"跳过不存在的文件：{path}")
-            continue
-        content = base64.b64encode(file_path.read_bytes()).decode("ascii")
-        blob = api("/git/blobs", {"content": content, "encoding": "base64"}, "POST")
-        mode_line = git(["ls-tree", "HEAD", "--", path]).decode("utf-8", "replace").strip()
-        mode = mode_line.split()[0] if mode_line else "100644"
-        entries.append({"path": path, "mode": mode, "type": "blob", "sha": blob["sha"]})
+        mode_line = git(["ls-tree", commit_sha, "--", path]).decode(
+            "utf-8", "replace"
+        ).strip()
+        if not mode_line:
+            raise SystemExit(f"找不到文件对象：{path}")
+        mode = mode_line.split()[0]
+        content = git(["cat-file", "blob", f"{commit_sha}:{path}"])
+        blob = api(
+            "/git/blobs",
+            {
+                "content": base64.b64encode(content).decode("ascii"),
+                "encoding": "base64",
+            },
+            "POST",
+        )
+        entries.append({
+            "path": path,
+            "mode": mode,
+            "type": "blob",
+            "sha": blob["sha"],
+        })
         print(f"更新 {path}")
 
-    if not entries:
-        print("没有检测到需要同步的文件。")
+    return entries
+
+
+def main() -> int:
+    local_head = git(["rev-parse", "HEAD"]).decode("ascii").strip()
+    remote_ref = api(f"/git/ref/heads/{BRANCH}")
+    remote_head = remote_ref["object"]["sha"]
+
+    if local_head == remote_head:
+        print("GitHub 已经是最新版本，无需发布。")
         return 0
 
-    tree = api("/git/trees", {"base_tree": base_tree, "tree": entries}, "POST")
-    commit = api(
-        "/git/commits",
-        {
-            "message": message,
-            "tree": tree["sha"],
-            "parents": [remote_head],
-            "author": {
-                "name": author_name,
-                "email": author_email,
-                "date": author_date,
+    if not git_ok(["cat-file", "-e", f"{remote_head}^{{commit}}"]):
+        print("本地缺少远端提交对象，无法通过 API 安全比较。")
+        print("请先执行 git fetch origin，再重新运行发布。")
+        return 1
+
+    if not git_ok(["merge-base", "--is-ancestor", remote_head, local_head]):
+        print("远端 main 不是本地 HEAD 的祖先，分支可能已经分叉。")
+        print("为避免覆盖远端内容，已停止发布。")
+        print("请先执行 git fetch origin 并检查 git log。")
+        return 1
+
+    commits_text = git([
+        "rev-list",
+        "--reverse",
+        "--topo-order",
+        f"{remote_head}..{local_head}",
+    ]).decode("ascii")
+    commits = [line.strip() for line in commits_text.splitlines() if line.strip()]
+    if not commits:
+        print("没有检测到需要同步的本地提交。")
+        return 1
+
+    remote_commit = api(f"/git/commits/{remote_head}")
+    mapping: dict[str, str] = {remote_head: remote_head}
+    tree_by_sha: dict[str, str] = {remote_head: remote_commit["tree"]["sha"]}
+
+    for commit_sha in commits:
+        parents = commit_parents(commit_sha)
+        if not parents:
+            raise SystemExit(f"待发布提交没有父提交：{commit_sha}")
+
+        mapped_parents: list[str] = []
+        for parent in parents:
+            mapped = mapping.get(parent)
+            if mapped is None:
+                raise SystemExit(
+                    f"提交 {commit_sha} 的父提交 {parent} 尚未发布，"
+                    "当前 API 通道暂不支持这种分支结构。"
+                )
+            mapped_parents.append(mapped)
+
+        base_tree = tree_by_sha[mapped_parents[0]]
+        entries = changed_entries(parents[0], commit_sha)
+        tree = api(
+            "/git/trees",
+            {"base_tree": base_tree, "tree": entries},
+            "POST",
+        )
+
+        name, email, date, c_name, c_email, c_date = commit_identity(commit_sha)
+        new_commit = api(
+            "/git/commits",
+            {
+                "message": commit_message(commit_sha),
+                "tree": tree["sha"],
+                "parents": mapped_parents,
+                "author": {"name": name, "email": email, "date": date},
+                "committer": {
+                    "name": c_name,
+                    "email": c_email,
+                    "date": c_date,
+                },
             },
-            "committer": {
-                "name": committer_name,
-                "email": committer_email,
-                "date": committer_date,
-            },
-        },
-        "POST",
-    )
+            "POST",
+        )
+        mapping[commit_sha] = new_commit["sha"]
+        tree_by_sha[new_commit["sha"]] = tree["sha"]
+        print(f"已创建远端提交 {commit_sha} -> {new_commit['sha']}")
+
+    published_head = mapping[commits[-1]]
     api(
         f"/git/refs/heads/{BRANCH}",
-        {"sha": commit["sha"], "force": False},
+        {"sha": published_head, "force": False},
         "PATCH",
     )
-    if commit["sha"] == local_head:
-        git(["update-ref", f"refs/remotes/origin/{BRANCH}", commit["sha"]])
+
+    if published_head == local_head:
+        git(["update-ref", f"refs/remotes/origin/{BRANCH}", published_head])
+        print("本地与 GitHub 提交号完全一致。")
     else:
-        local_tree = git(["rev-parse", "HEAD^{tree}"]).decode("ascii").strip()
-        clean = not git(["status", "--porcelain"]).strip()
-        if clean and tree["sha"] == local_tree:
-            git(["reset", "--hard", commit["sha"]])
-            git(["update-ref", f"refs/remotes/origin/{BRANCH}", commit["sha"]])
-            print("\u5df2\u5c06\u672c\u5730\u5206\u652f\u540c\u6b65\u5230 API \u53d1\u5e03\u63d0\u4ea4\u3002")
-        else:
-            print("\u6ce8\u610f\uff1aAPI \u901a\u9053\u7684\u8fdc\u7aef\u63d0\u4ea4\u53f7\u4e0e\u672c\u5730\u4e0d\u540c\u3002")
-            print("\u8bf7\u5148\u5907\u4efd\u672a\u63d0\u4ea4\u4fee\u6539\uff0c\u518d\u8fd0\u884c git fetch origin \u540e\u68c0\u67e5\u5206\u652f\u3002")
-    print(f"REMOTE_COMMIT={commit['sha']}")
+        print("发布成功，但 API 重建后的提交号与本地不同。")
+        print("请先备份内容，再执行 git fetch origin 后检查分支。")
+
+    print(f"REMOTE_COMMIT={published_head}")
     return 0
 
 
