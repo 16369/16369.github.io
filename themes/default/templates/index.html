@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ site.title }}{% if pagination.page > 1 %} · 第 {{ pagination.page }} 页{% endif %}{% endblock %}
+{% block description %}{{ site.description }}{% endblock %}
+{% block content %}
+{% if pagination.page == 1 and posts %}
+<section class="hero">
+  <h1>{{ site.subtitle or site.title }}</h1>
+  <p>{{ site.description }}</p>
+</section>
+{% endif %}
+
+{% if posts %}
+<div class="post-list">
+  {% for post in posts %}
+  <article class="post-card">
+    <h2 class="post-card-title"><a href="{{ root }}{{ post.url }}">{{ post.title }}</a></h2>
+    {% include "_post_meta.html" %}
+    {% if post.summary %}<p class="post-excerpt">{{ post.summary }}</p>{% endif %}
+    {% if post.tags %}
+    <ul class="tag-list">
+      {% for t in post.tags %}<li><a href="{{ root }}{{ t.url }}">#{{ t.name }}</a></li>{% endfor %}
+    </ul>
+    {% endif %}
+  </article>
+  {% endfor %}
+</div>
+{% include "_pagination.html" %}
+{% else %}
+<p class="empty">这里还没有文章。在 <code>content/posts/</code> 里新建一个 Markdown 文件，然后运行 <code>.\build.ps1</code>。</p>
+{% endif %}
+{% endblock %}

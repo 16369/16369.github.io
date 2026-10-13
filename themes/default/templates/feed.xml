@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>{{ site.title }}</title>
+    <link>{{ site.url }}</link>
+    <description>{{ site.description }}</description>
+    <language>{{ site.lang }}</language>
+    <lastBuildDate>{{ build_time_rfc822 }}</lastBuildDate>
+    <generator>codex-blog</generator>
+    <atom:link href="{{ site.url }}/feed.xml" rel="self" type="application/rss+xml"/>
+    {% for post in posts %}
+    <item>
+      <title>{{ post.title }}</title>
+      <link>{{ site.url }}/{{ post.url }}</link>
+      <guid isPermaLink="true">{{ site.url }}/{{ post.url }}</guid>
+      <pubDate>{{ post.rfc822 }}</pubDate>
+      <description>{{ post.summary }}</description>
+      {% for t in post.tags %}<category>{{ t.name }}</category>{% endfor %}
+    </item>
+    {% endfor %}
+  </channel>
+</rss>

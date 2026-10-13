@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}归档 · {{ site.title }}{% endblock %}
+{% block description %}{{ site.title }} 的全部文章归档{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>归档</h1>
+  <p>共 {{ total_posts }} 篇文章{% if year_groups %}，覆盖 {{ year_groups|length }} 个年份{% endif %}。</p>
+</header>
+
+{% for group in year_groups %}
+<section class="archive-group">
+  <h2 class="archive-year">{{ group.year }}<span>{{ group.posts|length }} 篇</span></h2>
+  <ul class="archive-list">
+    {% for post in group.posts %}
+    <li>
+      <time datetime="{{ post.date_iso }}">{{ post.date_str }}</time>
+      <a href="{{ root }}{{ post.url }}">{{ post.title }}</a>
+      {% if post.tags %}<span class="archive-tags">{% for t in post.tags %}<a href="{{ root }}{{ t.url }}">#{{ t.name }}</a>{% endfor %}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+
+{% if not year_groups %}<p class="empty">还没有文章。</p>{% endif %}
+{% endblock %}

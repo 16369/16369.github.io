@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ term.kind_label }}：{{ term.name }} · {{ site.title }}{% endblock %}
+{% block description %}{{ site.title }} 中{{ term.kind_label }}为「{{ term.name }}」的 {{ posts|length }} 篇文章{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>{{ term.kind_label }}：{{ term.name }}</h1>
+  <p>共 {{ posts|length }} 篇 · <a href="{{ root }}tags.html">查看全部{{ term.kind_label }}</a></p>
+</header>
+<div class="post-list compact">
+  {% for post in posts %}
+  <article class="post-card">
+    <h2 class="post-card-title"><a href="{{ root }}{{ post.url }}">{{ post.title }}</a></h2>
+    {% include "_post_meta.html" %}
+    {% if post.summary %}<p class="post-excerpt">{{ post.summary }}</p>{% endif %}
+  </article>
+  {% endfor %}
+</div>
+{% endblock %}

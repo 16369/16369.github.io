@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ item.title }} · {{ site.title }}{% endblock %}
+{% block description %}{{ item.summary or site.description }}{% endblock %}
+{% block content %}
+<article class="post page">
+  <header class="post-header">
+    <h1>{{ item.title }}</h1>
+    {% if item.updated_str %}<p class="post-meta"><time datetime="{{ item.updated_iso }}">更新于 {{ item.updated_str }}</time></p>{% endif %}
+  </header>
+  <div class="post-content">{{ item.content|safe }}</div>
+</article>
+{% endblock %}

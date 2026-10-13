@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}页面没找到 · {{ site.title }}{% endblock %}
+{% block description %}你访问的页面不存在{% endblock %}
+{% block content %}
+<section class="page-head center">
+  <p class="error-code">404</p>
+  <h1>这个页面不见了</h1>
+  <p>链接可能已经过期，或者文章被移动过。<a href="{{ root }}index.html">回到首页</a>，或者试试右上角的搜索。</p>
+</section>
+{% endblock %}

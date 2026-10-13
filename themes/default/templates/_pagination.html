@@ -1,0 +1,7 @@
+{% if pagination.total_pages > 1 %}
+<nav class="pagination" aria-label="分页">
+  {% if pagination.prev_url %}<a class="page-btn" href="{{ root }}{{ pagination.prev_url }}">← 更新</a>{% else %}<span class="page-btn disabled">← 更新</span>{% endif %}
+  <span class="page-info">第 {{ pagination.page }} / {{ pagination.total_pages }} 页</span>
+  {% if pagination.next_url %}<a class="page-btn" href="{{ root }}{{ pagination.next_url }}">更早 →</a>{% else %}<span class="page-btn disabled">更早 →</span>{% endif %}
+</nav>
+{% endif %}

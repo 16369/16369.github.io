@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}标签 · {{ site.title }}{% endblock %}
+{% block description %}{{ site.title }} 的标签与分类{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>标签与分类</h1>
+  <p>{{ tag_terms|length }} 个标签，{{ category_terms|length }} 个分类。</p>
+</header>
+
+<section class="terms-section">
+  <h2>标签</h2>
+  <ul class="cloud">
+    {% for t in tag_terms %}<li><a href="{{ root }}{{ t.url }}">{{ t.name }}<span>{{ t.count }}</span></a></li>{% endfor %}
+  </ul>
+</section>
+
+{% if category_terms %}
+<section class="terms-section">
+  <h2>分类</h2>
+  <ul class="cloud categories">
+    {% for c in category_terms %}<li><a href="{{ root }}{{ c.url }}">{{ c.name }}<span>{{ c.count }}</span></a></li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

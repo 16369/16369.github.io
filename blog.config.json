@@ -1,0 +1,40 @@
+{
+  "title": "伟妹的博客",
+  "subtitle": "记录 · 思考 · 成长",
+  "description": "一个关于技术、生活与思考的个人博客。",
+  "author": "伟妹",
+  "email": "",
+  "url": "https://16369.github.io",
+  "lang": "zh-CN",
+  "footer": "由 Markdown 与一点点好奇心驱动",
+  "nav": [
+    {
+      "name": "首页",
+      "url": "index.html"
+    },
+    {
+      "name": "归档",
+      "url": "archive.html"
+    },
+    {
+      "name": "标签",
+      "url": "tags.html"
+    },
+    {
+      "name": "关于",
+      "url": "about.html"
+    }
+  ],
+  "social": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/16369",
+      "icon": "github"
+    }
+  ],
+  "posts_per_page": 10,
+  "excerpt_length": 140,
+  "show_drafts": false,
+  "output_dir": "public",
+  "theme": "default"
+}

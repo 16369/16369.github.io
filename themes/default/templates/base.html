@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="{{ site.lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ site.title }}{% endblock %}</title>
+  <meta name="description" content="{% block description %}{{ site.description }}{% endblock %}">
+  <meta name="author" content="{{ site.author }}">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)">
+  {% block extra_meta %}{% endblock %}
+  <link rel="canonical" href="{{ page.absolute_url }}">
+  <link rel="alternate" type="application/rss+xml" title="{{ site.title }}" href="{{ root }}feed.xml">
+  <link rel="icon" href="{{ root }}assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ root }}assets/style.css">
+  <link rel="stylesheet" href="{{ root }}assets/highlight.css">
+  <script>(function(){try{var t=localStorage.getItem('theme');if(t&&t!=='auto'){document.documentElement.setAttribute('data-theme',t)}}catch(e){}})();</script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到正文</a>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="{{ root }}index.html">
+        <span class="brand-mark">{{ site.title[0] }}</span>
+        <span class="brand-text">
+          <strong>{{ site.title }}</strong>
+          {% if site.subtitle %}<small>{{ site.subtitle }}</small>{% endif %}
+        </span>
+      </a>
+      <nav class="site-nav" aria-label="主导航">
+        {% for item in site.nav %}
+        <a href="{{ root }}{{ item.url }}"{% if page.nav_active == item.url %} class="active" aria-current="page"{% endif %}>{{ item.name }}</a>
+        {% endfor %}
+      </nav>
+      <div class="header-actions">
+        <div class="search" data-root="{{ root }}">
+          <input id="search-input" type="search" placeholder="搜索…" aria-label="搜索文章" autocomplete="off">
+          <div id="search-results" class="search-results" hidden></div>
+        </div>
+        <button id="theme-toggle" class="icon-btn" type="button" title="切换深浅色" aria-label="切换深浅色">◐</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <p class="footer-note">{{ site.footer }}</p>
+      <p class="footer-links">
+        <a href="{{ root }}feed.xml">RSS</a>
+        {% for item in site.social %}
+        <span aria-hidden="true">·</span><a href="{{ item.url }}" rel="me noopener" target="_blank">{{ item.name }}</a>
+        {% endfor %}
+      </p>
+      <p class="footer-copy">© {{ build_year }} {{ site.author }}{% if site.email %} · <a href="mailto:{{ site.email }}">{{ site.email }}</a>{% endif %}</p>
+    </div>
+  </footer>
+
+  <script src="{{ root }}assets/main.js" defer></script>
+</body>
+</html>

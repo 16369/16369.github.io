@@ -1,0 +1,16 @@
+# 生成产物（可随时用 build 重新生成）
+public/
+# Python 虚拟环境
+.venv/
+__pycache__/
+*.pyc
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.log
+# 本地预览截图（不发布）
+.preview/
+tools/_screenshot.py
