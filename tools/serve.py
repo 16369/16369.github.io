@@ -60,8 +60,10 @@ def snapshot() -> dict[str, float]:
     return data
 
 
-def rebuild(drafts: bool) -> None:
+def rebuild(drafts: bool, live_reload: bool = True) -> None:
     argv = ["--drafts"] if drafts else []
+    if live_reload:
+        argv.append("--live-reload")
     code = blogbuild.main(argv + ["--quiet"])
     if code == 0:
         with LOCK:
@@ -127,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     print("正在构建……")
-    rebuild(args.drafts)
+    rebuild(args.drafts, live_reload=not args.no_watch)
 
     port = free_port(args.port)
     url = f"http://localhost:{port}/"

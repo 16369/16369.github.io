@@ -1,31 +1,24 @@
 {% extends "base.html" %}
 {% block title %}{{ site.title }}{% if pagination.page > 1 %} · 第 {{ pagination.page }} 页{% endif %}{% endblock %}
 {% block description %}{{ site.description }}{% endblock %}
+{% block main_class %}home-main{% endblock %}
 {% block content %}
-{% if pagination.page == 1 and posts %}
-<section class="hero">
-  <h1>{{ site.subtitle or site.title }}</h1>
+<header class="page-head home-heading">
+  <div class="heading-line"><h1>文章{% if pagination.page > 1 %}<span class="page-number"> / 第 {{ pagination.page }} 页</span>{% endif %}</h1><span class="post-count">{{ site_stats.posts }} 篇</span></div>
   <p>{{ site.description }}</p>
-</section>
-{% endif %}
-
+</header>
 {% if posts %}
 <div class="post-list">
   {% for post in posts %}
   <article class="post-card">
     <h2 class="post-card-title"><a href="{{ root }}{{ post.url }}">{{ post.title }}</a></h2>
-    {% include "_post_meta.html" %}
     {% if post.summary %}<p class="post-excerpt">{{ post.summary }}</p>{% endif %}
-    {% if post.tags %}
-    <ul class="tag-list">
-      {% for t in post.tags %}<li><a href="{{ root }}{{ t.url }}">#{{ t.name }}</a></li>{% endfor %}
-    </ul>
-    {% endif %}
+    <p class="post-meta"><time datetime="{{ post.date_iso }}">{{ post.date_str }}</time><span aria-hidden="true">·</span><span>{{ post.reading_time }} 分钟阅读</span>{% if post.categories %}<span aria-hidden="true">·</span>{% for category in post.categories %}<a href="{{ root }}{{ category.url }}">{{ category.name }}</a>{% endfor %}{% endif %}{% if post.draft %}<span>草稿</span>{% endif %}</p>
   </article>
   {% endfor %}
 </div>
 {% include "_pagination.html" %}
 {% else %}
-<p class="empty">这里还没有文章。在 <code>content/posts/</code> 里新建一个 Markdown 文件，然后运行 <code>.\build.ps1</code>。</p>
+<p class="empty">暂时没有文章。</p>
 {% endif %}
 {% endblock %}

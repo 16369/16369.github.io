@@ -19,6 +19,8 @@
 
 > 第一次运行会自动检查虚拟环境。如果 `.venv` 丢了，脚本会重新创建并安装依赖。
 
+构建会先在临时目录生成完整网站，成功后再替换 `public/`。文章或模板出错时，上次成功生成的网站会保留。自定义 `-Out` 必须指向项目内的空目录或已有博客构建目录；文章、主题、工具、隐藏目录和路径链接不能作为输出目录。`-NoClean` 仍会保留旧输出中的额外文件。
+
 ## 二、目录结构
 
 ```text
@@ -93,6 +95,8 @@ draft: false                 # true = 草稿，默认构建时跳过
 ## 五、改成你自己的样子
 
 - **站点信息**：编辑 `blog.config.json`（标题、副标题、描述、作者、导航、社交链接、每页文章数）
+- **首页介绍**：`description` 控制文章列表上方的一句话简介，文章数量自动统计
+- **搜索**：点击导航栏搜索框，或按 `/` 开始搜索；按 `Esc` 关闭结果。深浅色按钮会记住你的选择
 - **配色**：`themes/default/assets/style.css` 顶部的 `:root` 变量，改 `--accent` 就是换主题色，深色模式在 `html[data-theme="dark"]` 里
 - **页面结构**：`themes/default/templates/*.html`，改完重新构建即可
 - **图片**：放进 `static/images/`，正文里用 `![说明](/images/文件名.png)` 引用
@@ -109,7 +113,8 @@ draft: false                 # true = 草稿，默认构建时跳过
 ## 七、环境说明
 
 - 需要 Python 3.10+（本机已用 3.12 建好 `.venv`）
-- 依赖只有四个：`markdown`、`jinja2`、`pygments`、`pyyaml`，装在项目内的 `.venv` 里
+- 四个直接依赖为 `markdown`、`jinja2`、`pygments`、`pyyaml`；它们和间接依赖 `markupsafe` 均在 `requirements.txt` 中锁定版本，装在项目内的 `.venv` 里
+- `build.ps1` 会检测依赖文件变化，成功安装后才记录版本状态。Markdown 固定为兼容 Python 3.10 的版本
 - 重装依赖：`.\.venv\Scripts\python.exe -m pip install -r requirements.txt`
 - `public/` 是构建产物，已加入 `.gitignore`，不用提交
 ## 八、发布新文章
@@ -145,3 +150,18 @@ git add .
 git commit -m "发布新文章"
 git push
 ```
+
+## 九、回归检查
+
+GitHub Actions 会先运行回归测试，再构建并检查整站，全部通过后才部署。可以在本地执行同样的检查：
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py"
+node --test tests/frontend.test.cjs
+.\build.ps1
+.\check.ps1
+```
+
+JavaScript 回归测试使用 Node.js 22+；写文章、构建和预览博客不需要 Node.js。Python 测试使用临时项目副本，不会改动正式文章。测试覆盖目录保护、构建失败与替换失败后的恢复、图片引用、特殊标题、搜索加载与重试，以及预览自动刷新。
+
+自动刷新仅在 `serve.ps1` 预览时启用，普通构建和正式网站不会发出刷新轮询请求；`-NoWatch` 预览也不启用轮询。

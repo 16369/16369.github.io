@@ -8,13 +8,14 @@ r"""新建一篇文章：填好 front matter，正文留给你写。
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from datetime import datetime
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build import DATE_PREFIX_RE, as_list, slugify  # noqa: E402
+from build import as_list, slugify  # noqa: E402
 
 def _force_utf8_stdout() -> None:
     """Windows 控制台/管道默认可能是 GBK，统一改成 UTF-8，中文才不乱码。"""
@@ -29,16 +30,7 @@ _force_utf8_stdout()
 ROOT = Path(__file__).resolve().parents[1]
 POSTS_DIR = ROOT / "content" / "posts"
 
-TEMPLATE = """---
-title: {title}
-date: {date}
-tags: [{tags}]
-categories: [{categories}]
-summary: 
-draft: {draft}
----
-
-在这里开始写正文。写完这一段就可以删掉它。
+BODY = """在这里开始写正文。写完这一段就可以删掉它。
 
 ## 小标题
 
@@ -72,13 +64,16 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     POSTS_DIR.mkdir(parents=True, exist_ok=True)
-    path.write_text(TEMPLATE.format(
-        title=args.title.strip(),
-        date=f"{date.strftime('%Y-%m-%d')} {datetime.now().strftime('%H:%M')}",
-        tags=", ".join(as_list(args.tags)),
-        categories=", ".join(as_list(args.category)),
-        draft="true" if args.draft else "false",
-    ), encoding="utf-8")
+    metadata = {
+        "title": args.title.strip(),
+        "date": f"{date.strftime('%Y-%m-%d')} {datetime.now().strftime('%H:%M')}",
+        "tags": as_list(args.tags),
+        "categories": as_list(args.category),
+        "summary": "",
+        "draft": args.draft,
+    }
+    front_matter = yaml.safe_dump(metadata, allow_unicode=True, sort_keys=False)
+    path.write_text(f"---\n{front_matter}---\n\n{BODY}", encoding="utf-8")
 
     print(f"已创建：{path.relative_to(ROOT)}")
     print("用编辑器打开它开始写，然后运行 .\\serve.ps1 本地预览。")

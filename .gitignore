@@ -1,5 +1,6 @@
 # 生成产物（可随时用 build 重新生成）
 public/
+.blog-build-*/
 # Python 虚拟环境
 .venv/
 __pycache__/

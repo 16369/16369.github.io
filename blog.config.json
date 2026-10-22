@@ -1,12 +1,12 @@
 {
   "title": "伟妹的博客",
   "subtitle": "记录 · 思考 · 成长",
-  "description": "一个关于技术、生活与思考的个人博客。",
+  "description": "记录技术、生活与思考。",
   "author": "伟妹",
   "email": "",
   "url": "https://16369.github.io",
   "lang": "zh-CN",
-  "footer": "由 Markdown 与一点点好奇心驱动",
+  "footer": "认真生活，慢慢记录。",
   "nav": [
     {
       "name": "首页",

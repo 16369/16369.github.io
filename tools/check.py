@@ -37,12 +37,15 @@ def check_html(files: list[Path]) -> list[str]:
             target = unquote(urlparse(value).path)
             if not target:
                 continue
-            resolved = (page.parent / target).resolve()
+            resolved = ((PUBLIC / target.lstrip("/")) if target.startswith("/") else (page.parent / target)).resolve()
+            if not resolved.is_relative_to(PUBLIC.resolve()):
+                problems.append(f"{page.relative_to(PUBLIC)} -> {value}（超出网站目录）")
+                continue
             candidates = [resolved]
             if target.endswith("/"):
                 candidates.append(resolved / "index.html")
             candidates.append(resolved.with_suffix(".html")) if resolved.suffix == "" else None
-            if not any(c.exists() for c in candidates if c):
+            if not any(c.is_file() for c in candidates):
                 problems.append(f"{page.relative_to(PUBLIC)} -> {value}")
     return problems
 

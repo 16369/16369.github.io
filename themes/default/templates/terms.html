@@ -12,6 +12,7 @@
   <ul class="cloud">
     {% for t in tag_terms %}<li><a href="{{ root }}{{ t.url }}">{{ t.name }}<span>{{ t.count }}</span></a></li>{% endfor %}
   </ul>
+  {% if not tag_terms %}<p class="empty">暂无标签。</p>{% endif %}
 </section>
 
 {% if category_terms %}

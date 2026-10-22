@@ -3,8 +3,8 @@
 {% block description %}{{ site.title }} 的全部文章归档{% endblock %}
 {% block content %}
 <header class="page-head">
-  <h1>归档</h1>
-  <p>共 {{ total_posts }} 篇文章{% if year_groups %}，覆盖 {{ year_groups|length }} 个年份{% endif %}。</p>
+  <h1>文章归档</h1>
+  <p>共 {{ total_posts }} 篇文章。</p>
 </header>
 
 {% for group in year_groups %}

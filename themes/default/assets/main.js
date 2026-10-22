@@ -10,10 +10,19 @@
       (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
   }
   if (toggle) {
+    function updateThemeButton() {
+      var dark = currentTheme() === "dark";
+      var label = dark ? "切换到浅色模式" : "切换到深色模式";
+      toggle.setAttribute("aria-label", label);
+      toggle.setAttribute("title", label);
+      toggle.setAttribute("aria-pressed", String(dark));
+    }
+    updateThemeButton();
     toggle.addEventListener("click", function () {
       var next = currentTheme() === "dark" ? "light" : "dark";
       root.setAttribute("data-theme", next);
       try { localStorage.setItem("theme", next); } catch (e) {}
+      updateThemeButton();
     });
   }
 
@@ -45,15 +54,43 @@
   if (searchBox && input && results) {
     var base = searchBox.getAttribute("data-root") || "";
     var index = null;
-    var loading = false;
+    var loading = null;
+    var searchVersion = 0;
 
     function loadIndex() {
-      if (index || loading) return;
-      loading = true;
-      fetch(base + "search.json")
-        .then(function (r) { return r.json(); })
-        .then(function (data) { index = data; })
-        .catch(function () { index = []; });
+      if (index !== null) return Promise.resolve(index);
+      if (!loading) {
+        loading = fetch(base + "search.json")
+          .then(function (r) {
+            if (!r.ok) throw new Error("搜索索引加载失败");
+            return r.json();
+          })
+          .then(function (data) {
+            if (!Array.isArray(data)) throw new Error("搜索索引格式错误");
+            index = data;
+            loading = null;
+            return data;
+          })
+          .catch(function (error) {
+            loading = null;
+            throw error;
+          });
+      }
+      return loading;
+    }
+
+    function dismissResults() {
+      searchVersion += 1;
+      results.hidden = true;
+    }
+
+    function showMessage(message) {
+      results.innerHTML = "";
+      var status = document.createElement("div");
+      status.className = "no-result";
+      status.textContent = message;
+      results.appendChild(status);
+      results.hidden = false;
     }
 
     function render(list, query) {
@@ -80,40 +117,59 @@
     }
 
     function search(query) {
+      var version = ++searchVersion;
       var q = query.trim().toLowerCase();
-      if (!q) { results.hidden = true; return; }
-      if (!index) {
-        loadIndex();
-        setTimeout(function () { if (index) search(query); }, 300);
-        return;
-      }
-      var matched = index.filter(function (item) {
-        return (item.title + " " + (item.summary || "") + " " + (item.tags || []).join(" ") + " " + (item.content || ""))
-          .toLowerCase().indexOf(q) !== -1;
-      });
-      render(matched, query);
+      if (!q) { dismissResults(); return; }
+      if (index === null) showMessage("正在搜索…");
+      loadIndex()
+        .then(function (data) {
+          if (version !== searchVersion) return;
+          var matched = data.filter(function (item) {
+            return (item.title + " " + (item.summary || "") + " " + (item.tags || []).join(" ") + " " + (item.content || ""))
+              .toLowerCase().indexOf(q) !== -1;
+          });
+          render(matched, query);
+        })
+        .catch(function () {
+          if (version === searchVersion) showMessage("搜索暂时不可用，请重新输入重试");
+        });
     }
 
-    input.addEventListener("focus", loadIndex);
+    input.addEventListener("focus", function () {
+      if (input.value.trim()) search(input.value);
+      else loadIndex().catch(function () {});
+    });
     input.addEventListener("input", function () { search(input.value); });
     input.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") { input.value = ""; results.hidden = true; input.blur(); }
-      if (e.key === "Enter") {
+      if (e.key === "Escape") { input.value = ""; dismissResults(); input.blur(); }
+      if (e.key === "Enter" && !results.hidden) {
         var first = results.querySelector("a");
         if (first) { window.location.href = first.href; }
       }
     });
     document.addEventListener("click", function (e) {
-      if (!searchBox.contains(e.target)) results.hidden = true;
+      if (!searchBox.contains(e.target)) dismissResults();
+    });
+    document.addEventListener("keydown", function (e) {
+      var target = e.target;
+      var editing = target && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable);
+      if (e.key === "/" && !editing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        input.focus();
+      }
     });
   }
 
   /* ---------- 本地预览自动刷新（仅 serve.py 预览时生效） ---------- */
-  if (location.protocol.indexOf("http") === 0) {
+  var localHost = ["localhost", "127.0.0.1", "[::1]"].indexOf(location.hostname) !== -1;
+  if (localHost && root.getAttribute("data-live-reload") === "true" && location.protocol.indexOf("http") === 0) {
     var stamp = null;
-    setInterval(function () {
+    var reloadTimer = setInterval(function () {
       fetch("/__reload", { cache: "no-store" })
-        .then(function (r) { return r.ok ? r.text() : null; })
+        .then(function (r) {
+          if (!r.ok) { clearInterval(reloadTimer); return null; }
+          return r.text();
+        })
         .then(function (v) {
           if (v === null) return;
           if (stamp === null) { stamp = v; }

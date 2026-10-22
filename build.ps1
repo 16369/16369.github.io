@@ -24,12 +24,15 @@ if (-not (Test-Path $python)) {
         throw '没找到 Python。请先安装 Python 3.10+ 并勾选 “Add to PATH”。'
     }
     py -3 -m venv .venv
-    & $python -m pip install --upgrade pip -q
-    & $python -m pip install -r requirements.txt -q
+    if ($LASTEXITCODE -ne 0) { throw '创建 Python 虚拟环境失败。' }
 }
-if (-not (Test-Path (Join-Path $root '.venv\.blog-ready'))) {
+$readyFile = Join-Path $root '.venv\.blog-ready'
+$requirementsHash = (Get-FileHash -LiteralPath (Join-Path $root 'requirements.txt') -Algorithm SHA256).Hash
+$installedHash = if (Test-Path -LiteralPath $readyFile) { Get-Content -LiteralPath $readyFile -Raw } else { '' }
+if ($installedHash -ne $requirementsHash) {
     & $python -m pip install -r requirements.txt -q
-    New-Item -ItemType File -Force -Path (Join-Path $root '.venv\.blog-ready') | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw '安装博客依赖失败，请检查网络后重试。' }
+    Set-Content -LiteralPath $readyFile -Value $requirementsHash -NoNewline -Encoding ascii
 }
 
 $pyArgs = @((Join-Path $root 'tools\build.py'))

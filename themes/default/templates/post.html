@@ -10,6 +10,7 @@
   {% for t in post.tags %}<meta property="article:tag" content="{{ t.name }}">{% endfor %}
 {% endblock %}
 {% block content %}
+<nav class="breadcrumb" aria-label="返回文章列表"><a href="{{ root }}index.html">← 返回文章</a></nav>
 <article class="post">
   <header class="post-header">
     <h1>{{ post.title }}</h1>
@@ -31,7 +32,7 @@
   <div class="post-content">{{ post.content|safe }}</div>
 
   <footer class="post-footer">
-    <p>本文共 {{ post.word_count }} 字，欢迎在 <a href="{{ root }}about.html">关于页</a> 找到我。</p>
+    <p><a href="{{ root }}about.html">{{ site.author }}</a> · {{ post.word_count }} 字{% if post.draft %} · 草稿{% endif %}</p>
   </footer>
 
   <nav class="post-nav">

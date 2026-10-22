@@ -14,6 +14,7 @@ import json
 import re
 import shutil
 import sys
+import tempfile
 from datetime import date, datetime, time
 from email.utils import format_datetime
 from html import unescape
@@ -137,6 +138,30 @@ def make_markdown() -> markdown.Markdown:
 
 def rfc822(dt: datetime) -> str:
     return format_datetime(dt.replace(tzinfo=LOCAL_TZ))
+
+
+def validate_output_dir(path: Path) -> Path:
+    """只允许写入项目内的独立输出目录，不覆盖源码或未知文件。"""
+    root = ROOT.resolve()
+    out = path.resolve()
+    if out == root or not out.is_relative_to(root):
+        raise ValueError(f"拒绝使用输出目录：{out} 必须位于项目目录内")
+    # 同时检查原始路径，避免通过符号链接/Windows junction 改写其他目录。
+    original = path.absolute()
+    for part in (original, *original.parents):
+        if part == root:
+            break
+        if part.is_symlink() or getattr(part, "is_junction", lambda: False)():
+            raise ValueError(f"拒绝使用链接作为输出路径：{part}")
+    first = out.relative_to(root).parts[0].casefold()
+    if first.startswith(".") or first in {"content", "themes", "static", "tools", "tests", "venv", "node_modules"}:
+        raise ValueError(f"拒绝使用受保护的输出目录：{out}")
+    if out.exists():
+        if not out.is_dir():
+            raise ValueError(f"输出路径不是目录：{out}")
+        if any(out.iterdir()) and not (out / ".blog-build.json").is_file():
+            raise ValueError(f"拒绝覆盖非空目录：{out} 没有博客构建标记，请选择空目录")
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -288,10 +313,11 @@ class Content:
 # 输出
 # --------------------------------------------------------------------------- #
 class Builder:
-    def __init__(self, cfg: dict, out_dir: Path, include_drafts: bool, clean: bool = True):
+    def __init__(self, cfg: dict, out_dir: Path, include_drafts: bool, clean: bool = True, live_reload: bool = False):
         self.cfg = cfg
         self.out_dir = out_dir
         self.clean = clean
+        self.live_reload = live_reload
         self.content = Content(cfg, out_dir, include_drafts)
         theme_dir = ROOT / "themes" / str(cfg.get("theme", "default"))
         self.theme_dir = theme_dir
@@ -314,6 +340,13 @@ class Builder:
             "build_time": now,
             "build_time_rfc822": rfc822(now),
             "quote": url_encode,
+            "live_reload": self.live_reload,
+            "site_stats": {
+                "posts": len(self.content.posts),
+                "tags": len(self.content.terms_of("tag")),
+                "categories": len(self.content.terms_of("category")),
+            },
+            "page_urls": {item["raw_url"] for item in self.content.pages},
         }
         base.update(extra)
         return base
@@ -330,30 +363,52 @@ class Builder:
 
     # -- 构建 ---------------------------------------------------------------- #
     def run(self) -> None:
-        self.prepare_output()
+        destination = validate_output_dir(self.out_dir)
         content = self.content
         content.load_posts()
         content.load_pages()
         content.bump_terms()
-        self.copy_assets()
-        self.build_posts()
-        self.build_index()
-        self.build_archive()
-        self.build_terms()
-        self.build_pages()
-        self.build_feed()
-        self.build_sitemap()
-        self.build_search_index()
-        self.build_extras()
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        work = Path(tempfile.mkdtemp(prefix=".blog-build-", dir=destination.parent)).resolve()
+        backup = work / "previous"
+        preserve_backup = False
+        try:
+            self.out_dir = work / "site"
+            if not self.clean and destination.exists():
+                shutil.copytree(destination, self.out_dir)
+            else:
+                self.out_dir.mkdir()
+            self.copy_assets()
+            self.build_posts()
+            self.build_index()
+            self.build_archive()
+            self.build_terms()
+            self.build_pages()
+            self.build_feed()
+            self.build_sitemap()
+            self.build_search_index()
+            self.build_extras()
 
-    def prepare_output(self) -> None:
-        out = self.out_dir.resolve()
-        root = ROOT.resolve()
-        if out == root or root not in out.parents:
-            raise SystemExit(f"拒绝清理输出目录：{out} 不在项目目录内")
-        if out.exists() and self.clean:
-            shutil.rmtree(out)
-        out.mkdir(parents=True, exist_ok=True)
+            # 完整生成后才替换旧站点；Windows 不支持直接覆盖非空目录。
+            validate_output_dir(destination)
+            if destination.exists():
+                preserve_backup = True
+                destination.rename(backup)
+            try:
+                self.out_dir.rename(destination)
+            except BaseException:
+                if backup.exists():
+                    try:
+                        backup.rename(destination)
+                    except BaseException as exc:
+                        raise RuntimeError(f"替换失败且无法自动还原，旧站点保存在：{backup}") from exc
+                raise
+            preserve_backup = False
+        finally:
+            self.out_dir = destination
+            # 只清理本次创建、且确认位于项目内的临时目录。
+            if (not preserve_backup or not backup.exists()) and work.parent == destination.parent and work.is_relative_to(ROOT.resolve()):
+                shutil.rmtree(work, ignore_errors=True)
 
     def copy_assets(self) -> None:
         assets_src = self.theme_dir / "assets"
@@ -540,15 +595,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", default=None, help="输出目录（默认取配置里的 output_dir）")
     parser.add_argument("--no-clean", action="store_true", help="不清理输出目录，直接覆盖")
     parser.add_argument("--quiet", action="store_true", help="只输出结果摘要")
+    parser.add_argument("--live-reload", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
 
     cfg = load_config()
     out_dir = Path(args.out) if args.out else ROOT / str(cfg.get("output_dir", "public"))
     if not out_dir.is_absolute():
-        out_dir = (ROOT / out_dir).resolve()
+        out_dir = ROOT / out_dir
 
     include_drafts = args.drafts or bool(cfg.get("show_drafts"))
-    builder = Builder(cfg, out_dir, include_drafts, clean=not args.no_clean)
+    builder = Builder(cfg, out_dir, include_drafts, clean=not args.no_clean, live_reload=args.live_reload)
     builder.run()
 
     content = builder.content
